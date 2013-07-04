@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chat Board</title>
+  <script type="text/javascript" src="/jquery.min.js"></script>
+  <script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  
+  <link rel="stylesheet" href="pure-nr-min.css">
+
+  <style>
+    body * {
+        -webkit-tap-highlight-color: rgba(0,0,0,0);
+
+        -webkit-user-select: none; /* Chrome/Safari */        
+        -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* IE10+ */
+
+        /* Rules below not implemented in browsers yet */
+        -o-user-select: none;
+        user-select: none;
+    }
+    body {
+        background:url(
+            data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAJklEQVQYV2NkAILQ6/+NV2synsVHM8IkQRrwAUZCCmDyoybiDSkAi64maRzs6ekAAAAASUVORK5CYII=
+        ) repeat;
+    }
+    input {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        -o-user-select: text;
+        user-select: text;
+    }
+    .welcome{
+        display: none;
+        position: fixed;
+        margin-left:auto;
+        margin-right:auto;
+        width:100%;
+        z-index: 1999;
+    }
+    .msgbox{
+        position: absolute;
+        display: block;
+        left: 0px;
+        top: 0px;
+        z-index: 1;
+    }
+    .imgbox{
+        position: absolute;
+        display: block;
+        z-index: 1;
+    }
+
+    .draggable{
+        position: fixed;
+        left: 0px;
+        top: 0px;
+        z-index: 1;
+    }
+
+    #chatbox{
+        background-color: #FFFFFF;
+        padding: 5px;
+        padding-left: 8px;
+        padding-top: 8px;
+        display: none;
+        width: 210px;
+        height: 30px;
+        box-shadow: 0px 0px 3px rgba(125,125,125,0.5);
+        position: fixed;
+        z-index: 999;
+    }
+    #msg{
+        width: 200px;
+        padding: 2px;
+    }
+    .pure-button {
+        color: white;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    }
+    .pure-button-success {
+        background: rgb(28, 184, 65); /* this is a green */
+    }
+    .pure-button-error {
+        background: rgb(202, 60, 60); /* this is a maroon */
+    }
+    .pure-button-warning {
+        background: rgb(223, 117, 20); /* this is an orange */
+    }
+    .pure-button-secondary {
+        background: rgb(66, 184, 221); /* this is a light blue */
+    }
+
+    img {
+        display: block;
+        border: solid 3px #FFFFFF;
+        box-shadow: 0px 0px 3px rgba(125,125,125,0.5);
+        margin-top: 7px;
+    }
+
+    #help {
+        display: none;
+        position: fixed;
+        top: 10px;
+        right: 13px;
+        color: #555;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+        z-index: 2999;
+    }
+    #help_msg {
+        display: none;
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        color: #555;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+        box-shadow: 0px 0px 3px rgba(125,125,125,0.5);
+        background-color: #FFFFFF;
+        padding: 20px;
+        width: 330px;
+    }
+    #user {
+        position: fixed;
+        left: 10px;
+        bottom: 10px;
+        color: #555;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+        z-index: 3999;
+        cursor: pointer;
+    }
+  </style>
+</head>
+<body oncontextmenu="return false;">
+    <div id="help">
+        Help
+    
+    <div id="help_msg">
+        <li>Just typing and you will got it.</li>
+        <br>
+        <li>Or right click anywhere to create new post.</li>
+        <br>
+        <li>Post Image by paste image URL in textbox.</li>
+        <br>
+        <li>Drag to move the post to anywhere.</li>
+        <br>
+        <center>Create by <a href="http://n9ti.com" target="_blank" >Nati</a></center>
+    </div>
+    </div>
+
+    <div id="chatbox">
+        <input type="text" id="msg">
+    </div>
+
+    <div class="welcome pure-button pure-button-success">
+        <h1>What your name?<h1>
+        <form class="pure-form">
+            <input type="text" class="pure-input-rounded" id="name">
+        </form>
+    </div>
+
+    <div id="user"></div>
+  
+<script type="text/javascript">
+    var socket = new io.connect("/");
+    var boxX = 0;
+    var boxY = 0;
+    var name = "";
+    var noti;
+
+    socket.on('message', function(msg) {
+        console.log(msg);
+
+        var data = JSON.parse(msg);
+        
+        if(data.type == "currentConnection")
+        {
+            console.log("currentConnection: " + data.currentConnection);
+            $("#user").html(data.currentConnection + " Online.");
+
+            return true;
+        }
+        else if(data.type == "drag")
+        {
+            var box = $("body").find("#" + data.msg_id);
+            if(box != null)
+            {
+                box.css("left", data.position.left);
+                box.css("top", data.position.top);
+            }
+            return true;
+        }
+
+
+
+
+
+        var color = "";
+        var c = 0;
+        for(var i=0;i<data.name.length;i++)
+        {
+            c += data.name.charCodeAt(i);
+        }
+        
+        c%=4;
+
+        switch(c)
+        {
+            case 1:
+                color = "success";
+                break;
+            case 2:
+                color = "error";
+                break;
+            case 3:
+                color = "warning";
+                break;
+            case 4:
+                color = "secondary";
+                break;
+
+            default:
+                color = "secondary";
+        }
+
+        var imgbox = "";
+        var img = checkImage(data.msg);
+        if(img != null)
+        {
+            imgbox = "<img class='box' src='" + img + "' width='128px' >";
+            
+            //$("body").append(imgbox);
+
+            data.msg = data.msg.replace(img,"[img]");
+        }
+
+        data.msg = htmlEntities(data.msg);
+
+        var msgbox = "<div class='box pure-button pure-button-"+color+"' >"+ data.name + ": " + data.msg +"</div>";
+
+
+        var draggablebox = "<div class='draggable' id='"+data.msg_id+"' style='left:" + data.x + "px; top:" + data.y + "px;'>"+msgbox+"<br>"+imgbox+"</div>";
+
+
+        $("body").append(draggablebox);
+        
+        noti = new Audio("noti.mp3"); // buffers automatically when created
+        noti.volume = 1;
+        noti.play();
+
+
+        $( ".draggable" ).draggable({
+            drag: function( event, ui ) {
+                //console.log($(this).attr("id"));
+                //console.log(ui.position);
+
+                var msg = {
+                    msg_id: $(this).attr("id"),
+                    position: ui.position,
+                    type: "drag"
+                };
+                socket.send(JSON.stringify(msg)); 
+            }
+        });
+
+        setTimeout(function() { 
+            $("body").find("#"+data.msg_id).fadeOut(800, function(){
+                $(this).remove();
+            });
+        }, 1000 * 180);
+       
+    });
+
+    $(document).ready(function(){
+        var windows_height = $(window).height();
+        var welcome_height = $(".welcome").height();
+
+        $(".welcome").css("top", (windows_height/2) - (welcome_height));
+        $(".welcome").fadeIn(1000, function(){
+            $("#name").focus();
+            
+            noti = new Audio("noti.mp3"); // buffers automatically when created
+            noti.volume = 1;
+            noti.play();
+        });
+
+        //audioElement = document.createElement('audio');
+        //audioElement.setAttribute('src', 'noti.mp3');
+
+        noti = new Audio("noti.mp3"); // buffers automatically when created
+        noti.volume = 0;
+        noti.play();
+
+    });
+
+    $('#name').bind('keydown', function(event) {
+        if(event.keyCode == 13)
+        {
+            event.preventDefault();
+            name = $("#name").val();
+            $(".welcome").fadeOut(function(){
+                $(document).mousedown(function(event) {
+                    if(event.which == 3)
+                    {
+                        //preventDefault();
+                        $("#chatbox").css("display", "none");
+
+                        console.log(event.pageX + " : " + event.pageY);
+                        $("#chatbox").css("left", event.pageX);
+                        $("#chatbox").css("top", event.pageY);
+                        $("#chatbox").show(function(){
+                            $("#msg").focus();
+                        });
+
+                        boxX = event.pageX;
+                        boxY = event.pageY;
+                    }
+                    else if(event.which == 1)
+                    {
+                        $("#chatbox").hide();
+                    }
+                });
+                $(document).bind('keydown', function(event) {
+                    //if(event.keyCode == 32) /* Space bar */
+                    console.log(event);
+                    if($('#msg:focus').length == 0 && event.keyCode != 13)
+                    {
+                        //$("#msg").val(String.fromCharCode(event.keyCode));
+
+                        $("#chatbox").css("display", "none");
+
+                        $("#chatbox").css("left", $(window).width()/2 - $("#chatbox").width()/2);
+                        $("#chatbox").css("top", $(window).height()/2 - $("#chatbox").height()/2);
+
+                        $("#chatbox").fadeIn(0,function(){
+                            $("#msg").focus();
+                        });
+
+                        boxX = Math.floor((Math.random()* ($(window).width()-100))+1);
+                        boxY = Math.floor((Math.random()* ($(window).height()-40))+1);
+                    }
+                });
+            });
+
+            $("#help").fadeIn(500);
+            $("#help").hover(function(){
+                $("#help_msg").fadeIn(200);
+            },function(){
+                $("#help_msg").fadeOut(200);
+            });
+        }
+    });
+
+    $('#msg').bind('keydown', function(event) {
+        if(event.keyCode == 13)
+        {
+            //socket.send(boxX + ":" +  boxY + ":" +  $("#msg").val());
+
+            var msg = {
+                msg_id: Math.floor((Math.random()*1000000000)+1),
+                x: boxX,
+                y: boxY,
+                msg: $("#msg").val(),
+                name: name
+            };
+            socket.send(JSON.stringify(msg));            
+
+            $("#msg").val("");
+            $("#chatbox").hide();
+            $("#msg").blur();
+        }
+    });
+
+    function checkImage(str) {
+        if (str!= null && str!= "")
+        {
+            var regMatch = new RegExp("http:\\/\\/\\S+\\.[jJ][pP][eE]?[gG]"); 
+            var imageLink = regMatch.exec(str);
+            if(imageLink == null || imageLink.length > 1) {
+                return null
+            } else {
+                return imageLink;
+            }
+        }else
+        {
+            return null;
+        }
+    }
+
+    function htmlEntities(str) {
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+  </script>
+</body>
+</html>
